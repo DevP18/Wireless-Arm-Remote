@@ -1,0 +1,40 @@
+// raspberry pi 4 model b for the robotic arm code
+from RF24 import RF24
+import busio
+import board
+from adafruit_pca9685 import PCA9685
+
+radio = RF24(22, 0)  # CE GPIO22, CSN CE0
+address = b"HAND1"
+
+radio.begin()
+radio.openReadingPipe(1, address)
+radio.startListening()
+
+i2c = busio.I2C(board.SCL, board.SDA)
+pca = PCA9685(i2c)
+pca.frequency = 50
+
+SERVO_MIN = 150
+SERVO_MAX = 450
+
+def map_val(x, in_min, in_max, out_min, out_max):
+    return int((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min)
+
+while True:
+    if radio.available():
+        payload = radio.read(24)
+
+        thumb  = int.from_bytes(payload[0:2], 'little')
+        index  = int.from_bytes(payload[2:4], 'little')
+        middle = int.from_bytes(payload[4:6], 'little')
+        ring   = int.from_bytes(payload[6:8], 'little')
+        pinky = int.from_bytes(payload[8:10], 'little')
+        wrist  = int.from_bytes(payload[10:12], 'little', signed=True)
+
+        pca.channels[0].duty_cycle = map_val(thumb, 160, 270, SERVO_MIN, SERVO_MAX)
+        pca.channels[1].duty_cycle = map_val(index, 175, 320, SERVO_MIN, SERVO_MAX)
+        pca.channels[2].duty_cycle = map_val(middle,150,270, SERVO_MIN, SERVO_MAX)
+        pca.channels[3].duty_cycle = map_val(ring,200,290, SERVO_MIN, SERVO_MAX)
+        pca.channels[4].duty_cycle = map_val(pinky,280,840, SERVO_MIN, SERVO_MAX)
+        pca.channels[5].duty_cycle = map_val(wrist,-16000,16000,SERVO_MIN,SERVO_MAX)
